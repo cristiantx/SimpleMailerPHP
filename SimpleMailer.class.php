@@ -18,68 +18,222 @@ class SimpleMailer
 	/**
 	 * 
 	 */
-	protected $message;
-	protected $subject;
+	protected $from = array();
+	protected $to = array();
 
+	protected $cc = array();
+	protected $bcc = array();
+
+	protected $message = null;
+	protected $subject = null;
+	protected $headers = array();
+	
+	protected $vars = array();
+	protected $verbose = false;
+	protected $charset = 'utf-8';
+	protected $isHtml = false;
+	protected $templateUri = null;
+	protected $priority = 3;
+
+	protected $template = null;
+	protected $parsed_message = null;	
 	protected $debug = false;
 	protected $log;
-	protected $options;
-	protected $html;
-	
+
 	/**
 	 * Create a new Mailer class. 
 	 * Receive and array of options.
 	 * @param array $options 
 	 * @param bool $debug
 	 */
-	public function __construct($options, $debug = false) {
+	public function __construct( $debug = false ) {
 
 		if ( !function_exists('mail') ) {
-			throw new Exception('This Class needs mail() function to work.')
+			throw new Exception('This Class needs mail() function to work.');
 		} 
 
 		$this->debug = $debug;
-		
-		// Mailer default options.
-		$defaults = array(
-			'from' => array(
-				'name' => null, // From name
-				'email' => null  
-			),
-			'to' => array(
-				'name' => null,
-				'email' => null,
-				'CC' => null, // array of CC addresses
-				'CCO' => null, // array of CCO addresses
-			),
-			'isHtml' => false, // Specify if the email will be HTML format.
-			'templateHtmlSrc' => null, // In case email is in HTML format, specify a base template.
-			'charset' => 'utf8',
-			'priority' => 3,
-			'vars' => null,
-			'verbose' => false,
-		);
-		
-		$this->log('Setting options and maintaining defaults...');
-		//$this->log('Received options: ' . var_export($options, true));
-		$this->options = array_merge($defaults, $options);
-		
-		//$this->log('Final options: ' . var_export($options, true));
-		$this->log('Initializating SimpleMailer...');
-		$this->process();
 
 	}
 
+	public function setTo( $email, $name ) {
+
+		$email = $this->_filterEmail( $email );
+		$name = $this->_filterName( $name );
+
+		if ( !$this->_validateEmail( $email ) ) {
+			throw new InvalidArgumentException("Valid email needed.");
+		}
+
+		$this->to = array(
+				'email' => $email,
+				'name' => $name
+			);
+	}
+
 	
-	private function log($str, $br = true ) {
+	public function addCC( $email ) {
+
+		$email = $this->_filterEmail( $email );
+
+		if ( !$this->_validateEmail( $email ) ) {
+			throw new InvalidArgumentException("Valid email needed.");
+		}
+
+		array_push( $this->cc, $email );
+	}	
+
+	public function addBCC( $email ) {
+
+		$email = $this->_filterEmail( $email );
+
+		if ( !$this->_validateEmail( $email ) ) {
+			throw new InvalidArgumentException("Valid email needed.");
+		}
+
+		array_push( $this->bcc, $email );
+
+	}		
+
+
+	public function setFrom( $email, $name ) {
+
+		$email = $this->_filterEmail( $email );
+		$name = $this->_filterName( $name );
+
+		if ( !$this->_validateEmail( $email ) ) {
+			throw new InvalidArgumentException("Valid email needed.");
+		}
+
+		$this->from = array(
+				'email' => $email,
+				'name' => $name
+			);
+
+	}
+
+
+	public function setCharset( $charset ) {
+
+		// Check the supported charsets.
+		switch ($charset) {
+			case 'utf8':
+				$this->charset = 'utf-8';
+				break;
+			case 'iso':
+				$this->charset = 'iso-8859-1';
+				break;
+			default:
+				throw new InvalidArgumentException("Invalid charset or not supported");
+		}
+
+	}
+
+
+
+	/**
+	 * Sets the email subject.
+	 * 
+	 * @param string $subject The email Subject.
+	 */
+	public function setSubject($subject) {
+
+		$this->log('Setting subject to: ' . $subject);
+		$this->subject = $this->_filterGeneric( $subject );
+		
+		$this->vars['subject'] = $subject;
+
+	}
+
+	/**
+	 * Sets the email main message.
+	 * 
+	 * @param string $message The email message. Can have template "tags" to be replaced by data of the 'vars' class option.
+	 * @return void
+	 */
+	public function setMessage( $message ) {
+
+		$this->log('Setting message...');
+
+		$this->message = str_replace("\n.", "\n..", $message);
+
+		$this->vars['message'] = $message;
+
+	}	
+
+
+	public function htmlEmail ( $switch ) {
+
+		if( !is_bool($switch) ) {
+
+			throw new InvalidArgumentException();
+
+		}
+
+		$this->log( 'Setting email to : ' . (($switch)?'HTML':'plain text') );
+
+		$this->isHtml = $switch;
+
+	}
+
+
+	public function setTemplate ( $file ) {
+
+
+		$this->log('Setting template file to : ' . $file);
+
+		if( !is_string($file) ) {
+			throw new InvalidArgumentException('Needs file URI string');
+		}
+
+		if( !(file_exists($file) && is_file($file)) ) {
+			throw new Exception('File specified does not exist or is not a file.');
+		}
+
+		$this->templateUri = $file;
+
+	}
+
+
+	public function setPriority( $priority ) {
+
+		if( !is_int($priority) || !($priority >= 1 && $priority <= 5) ) {
+			throw new InvalidArgumentException("Invalid priority value. It must be an integer between 1 and 5");
+		}
+
+		$this->priority = $priority;
+
+	}
+
+
+	public function addVariable( $key, $value ) {
+
+		array_push($this->vars, array($key, $value));
+
+	}
+
+	public function addVariables( $variables ) {
+
+		array_merge($this->vars, $variables);
+
+	}	
+
+	
+	private function log( $str, $br = true ) {
 
 		$str = "<strong>[" . date('H:i:s') . "]</strong> " . $str . "<br />";
 		
-		if ($this->options['verbose']) {
+		if ($this->debug) {
 			echo $str;
 		}
 		
 		$this->log .= $str;
+
+	}
+
+	public function getLog() {
+
+		return $this->log;
 
 	}
 
@@ -89,47 +243,20 @@ class SimpleMailer
 	 */
 	private function process() {
 
-		if ( !filter_var($this->options['from']['email'], FILTER_VALIDATE_EMAIL) ) {
-			throw new Exception("Mailer needs a valid From address.");
-		}
 		
-		if ( !filter_var($this->options['to']['email'], FILTER_VALIDATE_EMAIL)) {
-			throw new Exception("Mailer needs at least a valid destination address.");
+		if( $this->templateUri ) {
+			// Read the Template from file
+			$this->readTemplate(); 
 		}
-		
-		if ($this->options['isHtml']) {
-			// Check if the template html src is specified.
-			if(!empty($this->options['templateHtmlSrc'])) {
-				// Read the HTML from file
-				$this->readHtml(); 
-			}
-			/*else {
-				throw new Exception("If you turn on the 'isHTML' flag. You need a 'templateHtmlSrc'");
-			}*/
-		}
-		
-		// Check the supported charsets.
-		switch ($this->options['charset']) {
-			case 'utf8':
-				$this->options['charset'] = 'utf-8';
-				break;
-			case 'iso':
-				$this->options['charset'] = 'iso-8859-1';
-				break;
-			default:
-				throw new Exception("Invalid charset or not supported");
-		}
-		
-		// Check if the priority is between the allowed values.
-		if ($this->options['priority'] > 5 || $this->options['priority'] < 1) {
-			throw new Exception("Invalid priority value. It must be between 1 and 5");
-		}
-		
+
 		// Setting main replacement variables for the template.
-		$this->options['vars']['fromName']	= $this->options['from']['name'];
-		$this->options['vars']['fromEmail'] = $this->options['from']['email'];
-		$this->options['vars']['toEmail']	= $this->options['to']['name'];
-		$this->options['vars']['toName']	= $this->options['to']['email'];
+		$this->vars['fromName']  = $this->from['name'];
+		$this->vars['fromEmail'] = $this->from['email'];
+		$this->vars['toEmail']   = $this->to['email'];
+		$this->vars['toName']    = $this->to['name'];
+
+		$this->parsePlaceholders();
+		$this->generateHeader();
 
 	}
 
@@ -137,14 +264,14 @@ class SimpleMailer
 	/**
 	 * Reads external HTML file used as template.
 	 */
-	private function readHtml() {
+	private function readTemplate() {
 
-		$src = $this->options['templateHtmlSrc'];
+		$src = $this->templateUri;
 		$this->log('Attemting to read template file ' . $src . '... ', false);
 		
 		// If file exists save the HTML into the property.
-		if (file_exists($src)) {
-			$this->html = file_get_contents($src);
+		if ( file_exists($src) ) {
+			$this->template = file_get_contents($src);
 		} 
 		else {
 			throw new Exception("Template file not found or don't have enough permissions to read it (file: {$src})");
@@ -155,34 +282,7 @@ class SimpleMailer
 	}
 
 	
-	/**
-	 * Sets the email subject.
-	 * 
-	 * @param string $subject The email Subject.
-	 */
-	public function setSubject($subject) {
 
-		$this->log('Setting subject to: ' . $subject);
-		$this->subject = $subject;
-		
-		$this->options['vars']['subject'] = $subject;
-
-	}
-
-	/**
-	 * Sets the email main message.
-	 * 
-	 * @param string $message The email message. Can have template "tags" to be replaced by data of the 'vars' class option.
-	 * @return void
-	 */
-	public function setMessage($message) {
-
-		$this->log('Setting message...');
-		$this->message = $message;
-		
-		$this->options['vars']['message'] = $message;
-
-	}
 
 	
 	/**
@@ -193,32 +293,13 @@ class SimpleMailer
 
 		$this->log('Parsing email placeholders... ', false);
 		
-		if ($this->options['isHtml']) {
-			$this->log('as HTML file.');
-			$parsed = $this->html;
-		}
-		else {
-			$this->log('as plain text.');
-			$parsed = $this->message;
-		}
+		$parsed = $this->template;
 		
-		foreach($this->options['vars'] as $key => $value) {
+		foreach($this->vars as $key => $value) {
 			$parsed = str_replace("{".$key."}", $value, $parsed);
 		}
 		
-		$this->setMessage($parsed);
-
-	}
-
-	
-	/**
-	 * Turn on the Debug feature.
-	 * NOTE: This feature just turn off the mail sender and prints the email content on the actual page when send() is called.
-	 * @return void
-	 */
-	public function debug() {
-
-		$this->debug = true;
+		$this->parsed_message = $parsed;
 
 	}
 
@@ -228,68 +309,80 @@ class SimpleMailer
 	 * @return string $headers The Headers String to use in the email.
 	 */
 	private function generateHeader() {
-
-		$options = $this->options;
-		$headers = '';
 		
-		$timeStamp = time();
+		$timestamp = time();
 		$remote_address = $_SERVER["REMOTE_ADDR"];		
-		$boundary = uniqid('np');
-
+		$boundary = md5(uniqid(time()));
 
 		$this->log('Setting headers...', false);
 
-		$header .= "MIME-Version: 1.0\r\n"; 
-
-		if (!empty($options['from']['name']) && !empty($options['from']['email'])) {
-			$headers .= "From: {$options['from']['name']} <{$options['from']['email']}>\r\n";
-		} 
-		elseif (!empty($options['from']['email'])) {
-			$headers .= "From: {$options['from']['email']}\r\n";
-		}
-
-		if (!empty($options['to']['CC'])) {
-
-			if (is_array($options['to']['CC'])) {
-				$headers .= "CC: " . implode(',', $options['to']['CC']) . "\r\n";
-			}
-			else {
-				$headers .= "CC: <{$options['to']['CC']}>\r\n";
-			}
-
-		}
+		$this->addHeader("MIME-Version: 1.0");
+		$this->addHeader("Content-type: multipart/mixed; boundary={$boundary}\r\n");
+		$this->addHeader("This is a multi-part message in MIME format.");
+		$this->addHeader("--" . $uid);
 		
-		if (!empty($options['to']['BCC'])) {
-
-			if (is_array($options['to']['BCC'])) {
-				$headers .= "BCC: " . implode(',', $options['to']['BCC']) . "\r\n";
-			}
-			else {
-				$headers .= "BCC: <{$options['to']['BCC']}>\r\n";
-			}
-
-		}
-		
-		if ($options['isHtml']) {
-			$headers .= "Content-type: text/html; charset={$options['charset']}\r\n";
+		if ($this->isHtml) {
+			$this->addHeader("Content-type: text/html; charset={$this->charset};");
 		} 
 		else {
-			$headers .= "text/plain; charset={$options['charset']}\r\n";
+			$this->addHeader("Content-type: text/plain; charset={$this->charset};");
 		}
 		
-		if ($options['priority']) {
-			$headers .=  "X-Priority: {$options['priority']}\r\n";
+		$this->addHeader( "Content-Transfer-Encoding: 7bit\r\n");
+		$this->addHeader( $this->parsed_message . "\r\n");
+		$this->addHeader("--" . $uid);
+
+
+		if (!empty($this->from['name']) && !empty($this->from['email'])) {
+			$this->addHeader("From: {$this->from['name']} <{$this->from['email']}>");
+		} 
+		elseif ( !empty($this->from['email']) ) {
+			$this->addHeader("From: {$this->from['email']}");
+		}
+
+		if (count($this->cc) > 0) {
+			$this->addHeader("CC: " . implode(',', $this->cc) );
+		}
+
+
+		if (count($this->bcc) > 0) {
+			$this->addHeader("BCC: " . implode(',', $this->bcc) );
+		}		
+		
+
+		if ($this->priority) {
+			$this->addHeader("X-Priority: {$this->priority}");
 		}	
-		
-		$headers .= "Message-Id: <p{$timeStamp}@[{$remote_address}]>\r\n";
-		
-		$headers .= "X-Sender: {$options['from']['email']}\r\n";
-		$headers .= "X-Sender-IP: " . $remote_address ."\r\n"; 
-		$headers .= "X-Mailer: PHP/" . phpversion()."\r\n";		
+
+		//$this->addHeader("Message-Id: <p{$timestamp}@[{$remote_address}]>");
+		$this->addHeader("X-Sender: {$this->from['email']}");
+		$this->addHeader("X-Sender-IP: {$remote_address}");
+		$this->addHeader("X-Mailer: PHP/" . phpversion());
 		
 		$this->log('Ok');
-		
-		return $headers;
+
+	}
+
+
+	private function getHeaders() {
+
+
+		$plain_headers = '';
+
+		foreach($this->headers as $header) {
+
+			$plain_headers .= $header . "\r\n";
+
+		}
+
+		return $plain_headers;
+
+	}
+
+
+	private function addHeader( $header ) {
+
+		array_push($this->headers, $header);
 
 	}
 
@@ -300,30 +393,36 @@ class SimpleMailer
 	 */
 	public function send() {
 
-		$this->parsePlaceholders();
-		$headers = $this->generateHeader();
+		$this->log('Processing options...');
+		$this->process();
+
+		$headers = $this->getHeaders();
 			
 		$this->log('Sending email...', false);
 		
 		$status = false;
 		
 		$this->log('Message: ');
-		$this->log($this->message);	
+		$this->log( $this->message );	
 		$this->log('Headers: ');
 		$this->log(nl2br($headers));			
 		
 		if (!$this->debug) {
-			if (mail($this->options['to']['email'], $this->subject, $this->message, $headers)) {
+
+			if (mail($this->to['email'], $this->subject, $this->message, $headers)) {
 				$this->log('Ok');
 				$status = true;
-			
 			} 
 			else {
 				$this->log('Failure!');
 			}
+
 		} else {
+
 			$this->printDebug();
+
 		}
+
 		return $status;
 
 	}
@@ -335,29 +434,63 @@ class SimpleMailer
 	 */
 	private function printDebug() {
 
-		echo '<div style="border: 1px solid red; padding: 10px;">' . $this->message . '</div>';
+		$print_message = ($this->isHtml)?$this->parsed_message:nl2br($this->parsed_message);
+
+		echo '<div style="border: 1px solid red; padding: 10px;">' . $print_message . '</div>';
 
 	}
 
-    public function __set($name, $value)
-    {
-        $this->options[$name] = $value;
-    }
 
-    public function __get($name)
-    {
-        
-        if (array_key_exists($name, $this->options)) {
-            return $this->options[$name];
-        }
+    protected function _filterEmail($email) {
 
-        $trace = debug_backtrace();
-        trigger_error(
-            'Undefined property via __get(): ' . $name .
-            ' in ' . $trace[0]['file'] .
-            ' on line ' . $trace[0]['line'],
-            E_USER_NOTICE);
+		$rule = array("\r" => '',
+					  "\n" => '',
+					  "\t" => '',
+					  '"'  => '',
+					  ','  => '',
+					  '<'  => '',
+					  '>'  => '',
+		);
 
-        return null;
-    }	
+		$email = strtr($email, $rule);
+		$email = filter_var($email, FILTER_SANITIZE_EMAIL);
+
+		return $email;
+
+	}
+
+	protected function _filterName($name) {
+
+		$rule = array("\r" => '',
+					  "\n" => '',
+					  "\t" => '',
+					  '"'  => "'",
+					  '<'  => '[',
+					  '>'  => ']',
+		);
+
+		return trim(strtr(filter_var($name, FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_HIGH), $rule));
+
+	}
+
+
+
+	protected function _filterGeneric($name) {
+
+		$rule = array("\r" => '',
+					  "\n" => '',
+					  "\t" => '',
+		);
+
+		return strtr(filter_var($data, FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_HIGH), $rule);
+	}
+
+
+	protected function _validateEmail( $email ) {
+
+		return filter_var( $email, FILTER_VALIDATE_EMAIL );
+
+	}
+
 }
+
