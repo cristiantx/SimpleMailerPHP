@@ -5,6 +5,7 @@
 ####Version 1.1a
 
 SimpleMailer Class is a simple way to send emails via PHP using an external file as a Template. It supports placeholders to be replaced on-the-fly.
+More info in http://cristian.bothmedia.com/
 
 	$mailer = new SimpleMailer( true ); // Sets true to turn debug on.
 	$mailer->setTo('test@gmail.com', 'Test Destinatary');
