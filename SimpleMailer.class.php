@@ -364,7 +364,7 @@ class SimpleMailer
 	 */
 	private function log( $str, $br = true ) {
 
-		$str = "<strong>[" . date('H:i:s') . "]</strong> " . $str . "<br />";
+		$str = "<strong>[" . date('H:i:s') . "]</strong> " . nl2br(htmlentities($str)) . "<br />";
 		
 		if ($this->debug) {
 			echo $str;
@@ -461,25 +461,9 @@ class SimpleMailer
 
 		$this->log('Setting headers...', false);
 
-		$this->addHeader("MIME-Version: 1.0");
-		$this->addHeader("Content-type: multipart/mixed; boundary={$boundary}\r\n");
-		$this->addHeader("This is a multi-part message in MIME format.");
-		$this->addHeader("--" . $uid);
-		
-		if ($this->isHtml) {
-			$this->addHeader("Content-type: text/html; charset={$this->charset};");
-		} 
-		else {
-			$this->addHeader("Content-type: text/plain; charset={$this->charset};");
-		}
-		
-		$this->addHeader( "Content-Transfer-Encoding: 7bit\r\n");
-		$this->addHeader( $this->parsed_message . "\r\n");
-		$this->addHeader("--" . $uid);
-
 
 		if (!empty($this->from['name']) && !empty($this->from['email'])) {
-			$this->addHeader("From: {$this->from['name']} <{$this->from['email']}>");
+			$this->addHeader('From: ' . $this->from['name'] . ' <' . $this->from['email'] . '>');
 		} 
 		elseif ( !empty($this->from['email']) ) {
 			$this->addHeader("From: {$this->from['email']}");
@@ -503,6 +487,21 @@ class SimpleMailer
 		$this->addHeader("X-Sender: {$this->from['email']}");
 		$this->addHeader("X-Sender-IP: {$remote_address}");
 		$this->addHeader("X-Mailer: PHP/" . phpversion());
+		$this->addHeader("MIME-Version: 1.0");
+		$this->addHeader("Content-type: multipart/mixed; boundary={$boundary}\r\n");
+		$this->addHeader("This is a multi-part message in MIME format.");
+		$this->addHeader("--" . $boundary);
+		
+		if ($this->isHtml) {
+			$this->addHeader("Content-type: text/html; charset={$this->charset};");
+		} 
+		else {
+			$this->addHeader("Content-type: text/plain; charset={$this->charset};");
+		}
+		
+		$this->addHeader( "Content-Transfer-Encoding: 7bit\r\n");
+		$this->addHeader( $this->parsed_message . "\r\n");
+		$this->addHeader("--" . $boundary);
 		
 		$this->log('Ok');
 
@@ -542,7 +541,7 @@ class SimpleMailer
 	
 	/**
 	 * Actually sends the resulting email.
-	 * @return void
+	 * @return bool
 	 */
 	public function send() {
 
@@ -558,23 +557,22 @@ class SimpleMailer
 		$this->log('Message: ');
 		$this->log( $this->message );	
 		$this->log('Headers: ');
-		$this->log(nl2br($headers));			
-		
-		if (!$this->debug) {
+		$this->log($headers);			
 
-			if (mail($this->to['email'], $this->subject, $this->message, $headers)) {
-				$this->log('Ok');
-				$status = true;
-			} 
-			else {
-				$this->log('Failure!');
-			}
+		// Prepared for Attachment support
+		// Message is sent on headers so we pass the message empty
+		if (mail($this->to['email'], $this->subject, '', $headers)) {
 
-		} else {
+			$this->log('Ok');
+			$status = true;
 
-			$this->printDebug();
+			if($this->debug) $this->printDebug();
 
+		} 
+		else {
+			$this->log('Failure!');
 		}
+
 
 		return $status;
 

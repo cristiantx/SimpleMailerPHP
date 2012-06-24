@@ -12,7 +12,7 @@
 	$mailer->setMessage('<strong>Hello World!</strong>');
 	$sent = $mailer->send();
 
-	if($send) {
+	if($sent) {
 		echo 'Sent succefully'; 
 	} else {
 		echo 'Mail Failed<br />';
