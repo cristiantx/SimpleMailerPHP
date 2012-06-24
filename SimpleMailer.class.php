@@ -2,7 +2,7 @@
 /**
  * SimpleMailer Class
  * Small utility to send formated or non-formated emails.
- * With different parameters using jQuery-like options, just for more confortable use.
+ * Is possible to use an external file as a template with placeholders to be replaced with variables added to the object.
  * 
  * @author Cristian Conedera <cristian.conedera@gmail.com>
  * @package SimpleMailer PHP
@@ -16,35 +16,114 @@ class SimpleMailer
 {
 
 	/**
-	 * 
+	 * @var array $from
+	 * @access protected
 	 */
 	protected $from = array();
+
+	/**
+	 * @var array $to
+	 * @access protected
+	 */	
 	protected $to = array();
 
+	/**
+	 * @var array $cc
+	 * @access protected
+	 */	
 	protected $cc = array();
+
+	/**
+	 * @var array $bcc
+	 * @access protected
+	 */		
 	protected $bcc = array();
 
+	/**
+	 * @var string $message (default value : NULL)
+	 * @access protected
+	 */	
 	protected $message = null;
+
+	/**
+	 * @var string $subject (default value : NULL)
+	 * @access protected
+	 */		
 	protected $subject = null;
+
+	/**
+	 * @var array $headers
+	 * @access protected
+	 */	
 	protected $headers = array();
 	
+	/**
+	 * Placeholders array, these will be replaced in the email template.
+	 * @var array $vars
+	 * @access protected
+	 */		
 	protected $vars = array();
+
+	/**
+	 * @var bool $verbose (default value: false)
+	 * @access protected
+	 */	
 	protected $verbose = false;
+
+	/**
+	 * @var string $charset (default value: utf-8)
+	 * @access protected
+	 */		
 	protected $charset = 'utf-8';
+
+	/**
+	 * Determine if the email will be send as HTML
+	 * @var bool $isHtml (default value: false)
+	 * @access protected
+	 */		
 	protected $isHtml = false;
+
+	/**
+	 * @var string $templateUri (default value: null)
+	 * @access protected
+	 */		
 	protected $templateUri = null;
+
+	/**
+	 * @var string $priority (default value: 3)
+	 * @access protected
+	 */
 	protected $priority = 3;
 
+
+	/**
+	 * @var string $template (default value: null)
+	 * @access protected
+	 */
 	protected $template = null;
+
+	/**
+	 * @var string $parsed_message (default value: null)
+	 * @access protected
+	 */	
 	protected $parsed_message = null;	
+
+	/**
+	 * @var bool $debug (default value: false)
+	 * @access protected
+	 */		
 	protected $debug = false;
-	protected $log;
+
+	/**
+	 * @var string $log (default value: null)
+	 * @access protected
+	 */		
+	protected $log = null;
 
 	/**
 	 * Create a new Mailer class. 
-	 * Receive and array of options.
-	 * @param array $options 
-	 * @param bool $debug
+	 * 
+	 * @param bool $debug Turn on the Debug Feature
 	 */
 	public function __construct( $debug = false ) {
 
@@ -56,6 +135,13 @@ class SimpleMailer
 
 	}
 
+
+	/**
+	 * Destination email/name
+	 * 
+	 * @param string $email
+	 * @param string $name
+	 */
 	public function setTo( $email, $name ) {
 
 		$email = $this->_filterEmail( $email );
@@ -72,6 +158,12 @@ class SimpleMailer
 	}
 
 	
+
+	/**
+	 * CC Destination email
+	 * 
+	 * @param string $email
+	 */	
 	public function addCC( $email ) {
 
 		$email = $this->_filterEmail( $email );
@@ -83,6 +175,12 @@ class SimpleMailer
 		array_push( $this->cc, $email );
 	}	
 
+
+	/**
+	 * BCC Destination email
+	 * 
+	 * @param string $email
+	 */	
 	public function addBCC( $email ) {
 
 		$email = $this->_filterEmail( $email );
@@ -96,6 +194,11 @@ class SimpleMailer
 	}		
 
 
+	/**
+	 * Sender email/name
+	 * 
+	 * @param string $email
+	 */	
 	public function setFrom( $email, $name ) {
 
 		$email = $this->_filterEmail( $email );
@@ -113,6 +216,11 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Sets the Email Charset Encoding
+	 * 
+	 * @param string $charset (utf8 | iso)
+	 */	
 	public function setCharset( $charset ) {
 
 		// Check the supported charsets.
@@ -132,7 +240,7 @@ class SimpleMailer
 
 
 	/**
-	 * Sets the email subject.
+	 * Sets the email subject.	 
 	 * 
 	 * @param string $subject The email Subject.
 	 */
@@ -145,10 +253,11 @@ class SimpleMailer
 
 	}
 
+
 	/**
 	 * Sets the email main message.
 	 * 
-	 * @param string $message The email message. Can have template "tags" to be replaced by data of the 'vars' class option.
+	 * @param string $message The email message. Can have template "placeholders" to be replaced by data of the 'vars' class option.
 	 * @return void
 	 */
 	public function setMessage( $message ) {
@@ -162,6 +271,11 @@ class SimpleMailer
 	}	
 
 
+	/**
+	 * Switch between HTML email and plain text email
+	 * 
+	 * @param bool $switch (true|false)
+	 */
 	public function htmlEmail ( $switch ) {
 
 		if( !is_bool($switch) ) {
@@ -177,6 +291,11 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Determine the email template using a file.
+	 * 
+	 * @param string $file File URI to use as Email template.
+	 */
 	public function setTemplate ( $file ) {
 
 
@@ -195,6 +314,11 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Set the email priority
+	 * 
+	 * @param int $priority [1-5]
+	 */
 	public function setPriority( $priority ) {
 
 		if( !is_int($priority) || !($priority >= 1 && $priority <= 5) ) {
@@ -205,13 +329,25 @@ class SimpleMailer
 
 	}
 
-
+	
+	/**
+	 * Add a placeholder to be replaced by the value in the template.
+	 * 
+	 * @param string $key The key is the name of the placeholder that will be replaced on the message template. 
+	 * @param mixed $value Value to be replaced.
+	 */
 	public function addVariable( $key, $value ) {
 
 		array_push($this->vars, array($key, $value));
 
 	}
 
+
+	/**
+	 * Add a placeholders to be replaced by the value in the template.
+	 * 
+	 * @param array $variables Array of key -> value that will be replaced in the template.
+	 */
 	public function addVariables( $variables ) {
 
 		array_merge($this->vars, $variables);
@@ -219,6 +355,13 @@ class SimpleMailer
 	}	
 
 	
+	/**
+	 * Saves a log of the current email progress.
+	 * 
+	 * @param string $str Log message. 
+	 * @param bool $br 
+	 * @return void
+	 */
 	private function log( $str, $br = true ) {
 
 		$str = "<strong>[" . date('H:i:s') . "]</strong> " . $str . "<br />";
@@ -231,6 +374,10 @@ class SimpleMailer
 
 	}
 
+
+	/**
+	 * @return string Returns the log of the current email.
+	 */
 	public function getLog() {
 
 		return $this->log;
@@ -239,7 +386,8 @@ class SimpleMailer
 
 	
 	/**
-	 * Validates & Process the options parameter.
+	 * Read the template files, parse the placeholders and generate the email headers.
+	 * @return void
 	 */
 	private function process() {
 
@@ -262,7 +410,7 @@ class SimpleMailer
 
 	
 	/**
-	 * Reads external HTML file used as template.
+	 * Reads external file used as template.
 	 */
 	private function readTemplate() {
 
@@ -280,9 +428,6 @@ class SimpleMailer
 		$this->log('Ok');
 
 	}
-
-	
-
 
 	
 	/**
@@ -364,6 +509,10 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Return the generated headers to be used.
+	 * @return string
+	 */
 	private function getHeaders() {
 
 
@@ -380,6 +529,10 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Add a header to the headers array.
+	 * @return void
+	 */
 	private function addHeader( $header ) {
 
 		array_push($this->headers, $header);
@@ -441,6 +594,11 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Filters and Sanitize an Email Address
+	 * @param string $email
+	 * @return string
+	 */
     protected function _filterEmail($email) {
 
 		$rule = array("\r" => '',
@@ -459,6 +617,12 @@ class SimpleMailer
 
 	}
 
+
+	/**
+	 * Filters and Sanitize a Name
+	 * @param string $name
+	 * @return string
+	 */
 	protected function _filterName($name) {
 
 		$rule = array("\r" => '',
@@ -474,8 +638,12 @@ class SimpleMailer
 	}
 
 
-
-	protected function _filterGeneric($name) {
+	/**
+	 * Filters and Sanitize an Generic Text
+	 * @param string $data
+	 * @return string
+	 */
+	protected function _filterGeneric($data) {
 
 		$rule = array("\r" => '',
 					  "\n" => '',
@@ -486,6 +654,11 @@ class SimpleMailer
 	}
 
 
+	/**
+	 * Validate an Email Address
+	 * @param string $email
+	 * @return string
+	 */
 	protected function _validateEmail( $email ) {
 
 		return filter_var( $email, FILTER_VALIDATE_EMAIL );
