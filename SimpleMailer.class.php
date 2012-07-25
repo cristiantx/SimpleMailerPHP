@@ -305,7 +305,7 @@ class SimpleMailer
 			throw new InvalidArgumentException('Needs file URI string');
 		}
 
-		if( !(file_exists($file) && is_file($file)) ) {
+		if( !file_exists($file) || is_dir($file) ) {
 			throw new Exception('File specified does not exist or is not a file.');
 		}
 
@@ -338,7 +338,7 @@ class SimpleMailer
 	 */
 	public function addVariable( $key, $value ) {
 
-		array_push($this->vars, array($key, $value));
+		$this->vars[$key] = $value;
 
 	}
 
@@ -350,7 +350,9 @@ class SimpleMailer
 	 */
 	public function addVariables( $variables ) {
 
-		array_merge($this->vars, $variables);
+		foreach($variables as $key => $value) {
+			$this->addVariable($key, $value);
+		}
 
 	}	
 
